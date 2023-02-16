@@ -72,7 +72,7 @@ fn main() -> Result<()> {
         let mut pandoc = Command::new("pandoc")
             .stdin(Stdio::piped())
             .arg("-f")
-            .arg("markdown+autolink_bare_uris+tex_math_dollars")
+            .arg("markdown+autolink_bare_uris+tex_math_dollars+mark")
             .arg("-o")
             .arg(args.output.to_str().unwrap())
             .arg("--standalone")
