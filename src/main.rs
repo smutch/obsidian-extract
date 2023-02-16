@@ -23,16 +23,20 @@ struct Args {
 
 fn replace_links(vault_path: &'_ Path) -> impl FnMut(&Captures) -> String + '_ {
     |captures| {
-        let text = captures.name("text").map_or("", |m| m.as_str());
         let target = captures.name("target").map_or("", |m| m.as_str());
-        let path = match glob(&format!("{}/**/{}", vault_path.to_string_lossy(), target))
+
+        let path = glob(&format!("{}/**/{}", vault_path.to_string_lossy(), target,))
             .unwrap()
             .next()
-        {
-            Some(path) => path.unwrap().to_str().unwrap().to_owned(),
-            None => String::from(""),
-        };
-        format!("[{}]({})", text, path)
+            .map(|path| path.unwrap().to_str().unwrap().to_owned());
+
+        let text = captures.name("text").map_or(target, |m| m.as_str());
+
+        if let Some(p) = path {
+            format!("[{}]({})", text, p)
+        } else {
+            text.into()
+        }
     }
 }
 
@@ -50,10 +54,7 @@ fn main() -> Result<()> {
     // Check out the funky deref - reref stuff going on here!
     let vault_path = PathBuf::from(&*shellexpand::full(&*args.vault.to_string_lossy())?);
     let note_path = vault_path.join(args.note);
-    let new_note = modify_note(
-        note_path,
-        vault_path,
-    )?;
+    let new_note = modify_note(note_path, vault_path)?;
     let temp_dir = tempdir()?;
 
     let template = include_bytes!("../resources/template.html");
@@ -71,7 +72,7 @@ fn main() -> Result<()> {
         let mut pandoc = Command::new("pandoc")
             .stdin(Stdio::piped())
             .arg("-f")
-            .arg("markdown")
+            .arg("markdown+autolink_bare_uris+tex_math_dollars")
             .arg("-o")
             .arg(args.output.to_str().unwrap())
             .arg("--standalone")
