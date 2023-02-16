@@ -1,17 +1,19 @@
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use clap::Parser;
 use glob::glob;
 use regex::{Captures, Regex};
-use tempfile::tempdir;
 use std::{
     fs,
+    io::Write,
     path::{Path, PathBuf},
-    process::{Command, Stdio}, io::Write,
+    process::{Command, Stdio},
 };
+use tempfile::tempdir;
 
 #[derive(Parser, Debug)]
 struct Args {
     note: PathBuf,
+    #[arg(short, long, env = "OBSIDIAN_VAULT")]
     vault: PathBuf,
     #[arg(short, long, default_value = "note.html")]
     output: PathBuf,
@@ -45,7 +47,13 @@ fn modify_note(note_path: PathBuf, vault_path: PathBuf) -> Result<String> {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    let new_note = modify_note(args.note, args.vault)?;
+    // Check out the funky deref - reref stuff going on here!
+    let vault_path = PathBuf::from(&*shellexpand::full(&*args.vault.to_string_lossy())?);
+    let note_path = vault_path.join(args.note);
+    let new_note = modify_note(
+        note_path,
+        vault_path,
+    )?;
     let temp_dir = tempdir()?;
 
     let template = include_bytes!("../resources/template.html");
@@ -56,11 +64,12 @@ fn main() -> Result<()> {
     let css = include_bytes!("../resources/output.css");
     let css_path = temp_dir.path().join("output.css");
     fs::File::create(&css_path)?.write_all(css)?;
-    
+
     if args.stdout {
         println!("{}", new_note);
     } else {
-        let mut pandoc = Command::new("pandoc").stdin(Stdio::piped())
+        let mut pandoc = Command::new("pandoc")
+            .stdin(Stdio::piped())
             .arg("-f")
             .arg("markdown")
             .arg("-o")
@@ -72,9 +81,14 @@ fn main() -> Result<()> {
             .arg("--css")
             .arg(css_path.to_str().unwrap())
             .arg("--template")
-            .arg(template_path.to_str().unwrap()).spawn()?;
+            .arg(template_path.to_str().unwrap())
+            .spawn()?;
 
-        pandoc.stdin.as_mut().unwrap().write_all(new_note.as_bytes())?;
+        pandoc
+            .stdin
+            .as_mut()
+            .unwrap()
+            .write_all(new_note.as_bytes())?;
         let output = pandoc.wait_with_output()?;
 
         if !output.status.success() {
