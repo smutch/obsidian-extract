@@ -8,6 +8,11 @@ Prerequisites
 
 - A recent version of [Pandoc](https://pandoc.org) on your `PATH`.
 
+Installation
+------------
+
+`obsidian-extract` is just a single, stand-alone binary. [Grab the download for your platform of choice here](https://github.com/smutch/obsidian-extract/releases). 
+
 Usage
 -----
 
