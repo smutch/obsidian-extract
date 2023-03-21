@@ -32,8 +32,8 @@ fn replace_links(vault_path: &'_ Path) -> impl FnMut(&Captures) -> String + '_ {
     |captures| {
         let target = captures.name("target").map_or("", |m| m.as_str());
 
-        let path = glob_link(vault_path, target)
-            .or_else(|| glob_link(vault_path, &format!("{}.md", target)));
+        let path = glob_link(vault_path, target);
+            // .or_else(|| glob_link(vault_path, &format!("{}.md", target)));
         if path.is_none() {
             println!("Could not find link for {}", target);
         }
@@ -48,7 +48,7 @@ fn replace_links(vault_path: &'_ Path) -> impl FnMut(&Captures) -> String + '_ {
         if let Some(p) = path {
             format!("{}[{}]({})", if inline { "!" } else { "" }, text, p)
         } else {
-            text.into()
+            format!("[{}]", text)
         }
     }
 }
