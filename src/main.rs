@@ -21,19 +21,32 @@ struct Args {
     stdout: bool,
 }
 
+fn glob_link(vault_path: &Path, target: &str) -> Option<String> {
+    glob(&format!("{}/**/{}", vault_path.to_string_lossy(), target,))
+        .unwrap()
+        .next()
+        .map(|path| path.unwrap().to_str().unwrap().to_owned())
+}
+
 fn replace_links(vault_path: &'_ Path) -> impl FnMut(&Captures) -> String + '_ {
     |captures| {
         let target = captures.name("target").map_or("", |m| m.as_str());
 
-        let path = glob(&format!("{}/**/{}", vault_path.to_string_lossy(), target,))
-            .unwrap()
-            .next()
-            .map(|path| path.unwrap().to_str().unwrap().to_owned());
+        let path = glob_link(vault_path, target)
+            .or_else(|| glob_link(vault_path, &format!("{}.md", target)));
+        if path.is_none() {
+            println!("Could not find link for {}", target);
+        }
 
-        let text = captures.name("text").map_or(target, |m| m.as_str());
+        let inline = captures.name("inline").is_some();
+        let text = if !inline {
+            captures.name("text").map_or(target, |m| m.as_str())
+        } else {
+            ""
+        };
 
         if let Some(p) = path {
-            format!("[{}]({})", text, p)
+            format!("{}[{}]({})", if inline { "!" } else { "" }, text, p)
         } else {
             text.into()
         }
@@ -43,7 +56,7 @@ fn replace_links(vault_path: &'_ Path) -> impl FnMut(&Captures) -> String + '_ {
 #[allow(unused)]
 fn modify_note(note_path: PathBuf, vault_path: PathBuf) -> Result<String> {
     let note = fs::read_to_string(note_path)?;
-    let re = Regex::new(r"\[\[(?P<target>[^\|\]]+)\|?(?P<text>[^\|\]]+)?\]\]")?;
+    let re = Regex::new(r"(?P<inline>!)?\[\[(?P<target>[^\|\]]+)\|?(?P<text>[^\|\]]+)?\]\]")?;
     Ok(re
         .replace_all(&note, replace_links(&vault_path))
         .into_owned())
